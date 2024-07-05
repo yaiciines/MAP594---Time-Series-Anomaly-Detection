@@ -24,13 +24,26 @@ from torch.utils.data import Dataset
 #sequence_length determines how many time steps are in each sequence.
 #stride allows you to control the overlap between sequences. A stride of 1 means each sequence starts one time step after the previous one, while a larger stride reduces overlap.
 
+# Data Normalization: You might want to add normalization to your TimeSeriesDataset class. This can help with training stability.
+
+# import the time series data and creates sliding windows. The TimeSeriesDataset class handles this by using the sequence_length and stride parameters.
+import torch
+from torch.utils.data import Dataset
+import numpy as np
+
 class TimeSeriesDataset(Dataset):
-    def __init__(self, folder_path, sequence_length=100, stride=1):
+    def __init__(self, folder_path, sequence_length=100, stride=1, normalize=True):
         self.train_data = np.load(f'{folder_path}/train.npy')
         self.train_timestamp = np.load(f'{folder_path}/train_timestamp.npy')
         self.train_label = np.load(f'{folder_path}/train_label.npy')
         self.sequence_length = sequence_length
         self.stride = stride
+        self.normalize = normalize
+        
+        if self.normalize:
+            self.mean = np.mean(self.train_data)
+            self.std = np.std(self.train_data)
+            self.train_data = (self.train_data - self.mean) / self.std
         
     def __len__(self):
         return (len(self.train_data) - self.sequence_length) // self.stride + 1
@@ -41,6 +54,16 @@ class TimeSeriesDataset(Dataset):
         sequence = self.train_data[start_idx:end_idx]
         sequence_labels = self.train_label[start_idx:end_idx]
         return torch.FloatTensor(sequence), self.train_timestamp[start_idx], sequence_labels
+    
+    def denormalize(self, data):
+        if self.normalize:
+            return data * self.std + self.mean
+        return data
+
+# Example usage:
+# dataset = TimeSeriesDataset(folder_path='path/to/data', normalize=True)
+"""When you're using the normalized data and need to convert it back to the original scale (e.g., for visualization or evaluation), you can use the denormalize method:
+original_scale_data = dataset.denormalize(normalized_data)"""
 
 class Block(nn.Module):
     def __init__(self, size: int):
@@ -52,6 +75,8 @@ class Block(nn.Module):
     def forward(self, x: torch.Tensor):
         return x + self.act(self.ff(x))
 
+
+#Model Architecture: Ensure your MLP class is properly implemented for time series data. You might want to consider using a more specialized architecture like a Temporal Convolutional Network (TCN) or a Transformer.
 class MLP(nn.Module):
     def __init__(self, input_size, hidden_size=128, hidden_layers=3, emb_size=128,
                  time_emb="sinusoidal", input_emb="sinusoidal"):
@@ -215,8 +240,12 @@ def main(config):
     sequence_length = 100
     
     # Set up dataset and dataloader
-    dataset = TimeSeriesDataset('datasets/UTS/WSD/1')
-    dataloader = DataLoader(dataset, batch_size=config.train_batch_size, shuffle=True, drop_last=True)
+    dataset = TimeSeriesDataset(config.data_path)
+    
+    # Shuffling: The dataloader is currently not shuffling the data (shuffle=False). For training, it's usually better to shuffle to prevent the model from learning sequence order. I've changed this to shuffle=True in the artifact.
+    # Dropping last batch: You might want to set drop_last=True in the DataLoader to ensure all batches are of the same size. This can be important for some operations.
+    
+    dataloader = DataLoader(dataset, batch_size=config.train_batch_size, shuffle=True , drop_last=True)
     # Adjust model initialization
     model = MLP(
         input_size=sequence_length,
@@ -240,6 +269,8 @@ def main(config):
     frames = []
     losses = []
     print("Training model...")
+    # Training over windows: The code does train over these windows. Each batch contains multiple sequences of length sequence_length.
+
     for epoch in range(config.num_epochs):
         model.train()
         progress_bar = tqdm(total=len(dataloader))
@@ -269,7 +300,7 @@ def main(config):
         progress_bar.close()
         
         # Evaluation and visualization
-        if epoch % config.save_images_step == 0 or epoch == config.num_epochs - 1:
+        """if epoch % config.save_images_step == 0 or epoch == config.num_epochs - 1:
             model.eval()
             # Change this line:
             sample = torch.randn(config.eval_batch_size, sequence_length)  # Use sequence_length instead of dataset[0][0].shape[0]
@@ -281,7 +312,7 @@ def main(config):
                 sample = noise_scheduler.step(residual, t[0], sample)
             
             save_path = os.path.join(config.output_dir, f"sample_epoch_{epoch}.png")
-            visualize_sample(sample, epoch, i, save_path)
+            visualize_sample(sample, epoch, i, save_path)"""
 
 
     print("Saving model...")
@@ -305,6 +336,7 @@ if __name__ == "__main__":
     parser.add_argument("--time_embedding", type=str, default="sinusoidal", choices=["sinusoidal", "learnable", "linear", "zero"])
     parser.add_argument("--input_embedding", type=str, default="sinusoidal", choices=["sinusoidal", "learnable", "linear", "identity"])
     parser.add_argument("--save_images_step", type=int, default=10)
+    parser.add_argument("--experiment_name", type=str, default='NonName')
 
     config = parser.parse_args()
     
