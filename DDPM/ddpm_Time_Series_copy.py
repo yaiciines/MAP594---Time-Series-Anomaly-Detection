@@ -23,7 +23,7 @@ from tqdm import tqdm
 # import the time series data and creates sliding windows. The TimeSeriesDataset class handles this by using the sequence_length and stride parameters.
 
 class TimeSeriesDataset(Dataset):
-    def __init__(self, folder_path, sequence_length=1000, stride=500, normalize=True):
+    def __init__(self, folder_path, sequence_length=10000, stride=500, normalize=True):
         self.train_data = np.load(f'{folder_path}/train.npy')
         self.train_timestamp = np.load(f'{folder_path}/train_timestamp.npy')
         self.train_label = np.load(f'{folder_path}/train_label.npy')
@@ -319,7 +319,7 @@ class NoiseScheduler():
         return self.num_timesteps
 
 def main(config):
-    sequence_length = 1000
+    sequence_length = 10000
     input_size = 2  # Assuming 1D time series data
     
     # Set up dataset and dataloader
