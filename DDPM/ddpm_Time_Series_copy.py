@@ -23,7 +23,7 @@ from tqdm import tqdm
 # import the time series data and creates sliding windows. The TimeSeriesDataset class handles this by using the sequence_length and stride parameters.
 
 class TimeSeriesDataset(Dataset):
-    def __init__(self, folder_path, sequence_length=10000, stride=500, normalize=True):
+    def __init__(self, folder_path, sequence_length=10000, stride=1000, normalize=True):
         self.train_data = np.load(f'{folder_path}/train.npy')
         self.train_timestamp = np.load(f'{folder_path}/train_timestamp.npy')
         self.train_label = np.load(f'{folder_path}/train_label.npy')
@@ -50,6 +50,42 @@ class TimeSeriesDataset(Dataset):
         if self.normalize:
             return data * self.std + self.mean
         return data
+
+class TimeSeriesTestDataset(Dataset):
+    def __init__(self, folder_path, sequence_length=10000, stride=1000, normalize=True, mean=None, std=None):
+        self.test_data = np.load(f'{folder_path}/test.npy')
+        self.test_timestamp = np.load(f'{folder_path}/test_timestamp.npy')
+        self.test_label = np.load(f'{folder_path}/test_label.npy')
+        self.sequence_length = sequence_length
+        self.stride = stride
+        self.normalize = normalize
+        
+        if self.normalize:
+            # If mean and std are provided, use them; otherwise, calculate from test data
+            if mean is not None and std is not None:
+                self.mean = mean
+                self.std = std
+            else:
+                self.mean = np.mean(self.test_data)
+                self.std = np.std(self.test_data)
+            self.test_data = (self.test_data - self.mean) / self.std
+        
+    def __len__(self):
+        return (len(self.test_data) - self.sequence_length) // self.stride + 1
+    
+    def __getitem__(self, idx):
+        start_idx = idx * self.stride
+        end_idx = start_idx + self.sequence_length
+        sequence = self.test_data[start_idx:end_idx]
+        sequence_labels = self.test_label[start_idx:end_idx]
+        return torch.FloatTensor(sequence), self.test_timestamp[start_idx], sequence_labels
+    
+    def denormalize(self, data):
+        if self.normalize:
+            return data * self.std + self.mean
+        return data
+
+
 
 # Example usage:
 # dataset = TimeSeriesDataset(folder_path='path/to/data', normalize=True)
@@ -202,6 +238,35 @@ class TCN(nn.Module):
 # t = torch.randn(32)  # (batch_size,)
 # output = model(x, t)
 
+class ImprovedTCN(nn.Module):
+    def __init__(self, input_size, output_size, num_channels, kernel_size, dropout):
+        super(ImprovedTCN, self).__init__()
+        self.tcn_layers = nn.ModuleList([TemporalConvNet(input_size if i == 0 else num_channels[i-1], 
+                                                         [num_channels[i]], 
+                                                         kernel_size=kernel_size, 
+                                                         dropout=dropout) 
+                                         for i in range(len(num_channels))])
+        self.linear = nn.Linear(num_channels[-1], output_size)
+        self.init_weights()
+
+    def init_weights(self):
+        self.linear.weight.data.normal_(0, 0.01)
+
+    def forward(self, x, t):
+        if x.dim() == 2:
+            x = x.unsqueeze(-1)
+        
+        t = t.unsqueeze(1).unsqueeze(2).expand(-1, x.size(1), -1)
+        x = torch.cat([x, t], dim=-1)
+        x = x.permute(0, 2, 1)
+        
+        skip_connections = []
+        for tcn in self.tcn_layers:
+            x = tcn(x)
+            skip_connections.append(x)
+        
+        x = torch.sum(torch.stack(skip_connections), dim=0)
+        return self.linear(x.transpose(1, 2)).squeeze(-1)
 """
 This TCN-based architecture offers several advantages for time series anomaly detection:
 
