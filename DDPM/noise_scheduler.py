@@ -14,6 +14,33 @@ from positional_embeddings import PositionalEmbedding
 
 from tqdm import tqdm
 
+
+"""The `step` function in the `NoiseScheduler` class plays a critical role in the denoising process of the Denoising Diffusion Probabilistic Model (DDPM). It guides the model in reversing the noise added during the forward diffusion process to reconstruct the original data from a noisy sample. Here's a breakdown of how it works:
+
+### 1. **Reconstruction of the Original Sample (`reconstruct_x0`)**
+   - The `step` function begins by reconstructing the original sample (`pred_original_sample`) from the current noisy sample (`sample`) using the model's output (`model_output`). This reconstruction relies on the inverse cumulative product of the noise schedule (`alphas_cumprod`) and is used to approximate the original, noise-free sample.
+
+### 2. **Predicting the Previous Sample (`q_posterior`)**
+   - After obtaining the reconstructed original sample, the `step` function predicts the previous noisy sample (`pred_prev_sample`) in the reverse diffusion process. This is done using the `q_posterior` method, which calculates the mean of the distribution from which the previous sample can be drawn.
+
+### 3. **Adding Variance**
+   - Noise is reintroduced to the predicted sample to account for the inherent randomness in the diffusion process. This is done by adding a variance term, which is derived from the schedule (`betas`) and adjusted based on the timestep.
+   - If the timestep (`t`) is greater than zero, Gaussian noise (`torch.randn_like(model_output)`) is added to the prediction to simulate the uncertainty in the reverse process. The amount of noise added is scaled by the square root of the variance (`get_variance(t)`).
+
+### 4. **Returning the Predicted Previous Sample**
+   - Finally, the function returns the predicted previous sample (`pred_prev_sample`), which is a combination of the deterministic mean (from `q_posterior`) and the stochastic variance (added noise). This sample is then used as the input for the next timestep in the reverse diffusion process.
+
+### **Role of `step` in the Noise Scheduler**
+The `step` function plays a crucial role in transitioning from one timestep to the previous one in the reverse diffusion process. It balances between the deterministic reconstruction of the original sample and the stochastic nature of the noise, effectively guiding the model back from a noisy sample to a clean one. This iterative process is at the heart of how DDPMs generate high-quality data from noise.
+
+### **Summary of the `step` Function's Role**
+- **Reconstructs the original sample** from a noisy one.
+- **Predicts the previous timestep's sample** based on the current one.
+- **Adds stochastic noise** to simulate the uncertainty in the denoising process.
+- **Enables the reverse diffusion process** to gradually remove noise and recover the original data.
+
+In essence, the `step` function is the mechanism that allows the model to iteratively refine its output, ultimately leading to a high-quality reconstruction of the original data from the noisy inputs.
+"""
 #================================================================================================
 # Gaussian - White noise scheduler 
 #================================================================================================
