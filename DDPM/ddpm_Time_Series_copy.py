@@ -23,9 +23,9 @@ from tqdm import tqdm
 # import the time series data and creates sliding windows. The TimeSeriesDataset class handles this by using the sequence_length and stride parameters.
 
 class TimeSeriesDataset(Dataset):
-    def __init__(self, folder_path, sequence_length=10000, stride=1000, normalize=True):
+    def __init__(self, folder_path, sequence_length=5000, stride=500, normalize=True):
         self.train_data = np.load(f'{folder_path}/train.npy')
-        self.train_timestamp = np.load(f'{folder_path}/train_timestamp.npy')
+        #self.train_timestamp = np.load(f'{folder_path}/train_timestamp.npy')
         self.train_label = np.load(f'{folder_path}/train_label.npy')
         self.sequence_length = sequence_length
         self.stride = stride
@@ -44,7 +44,7 @@ class TimeSeriesDataset(Dataset):
         end_idx = start_idx + self.sequence_length
         sequence = self.train_data[start_idx:end_idx]
         sequence_labels = self.train_label[start_idx:end_idx]
-        return torch.FloatTensor(sequence), self.train_timestamp[start_idx], sequence_labels
+        return torch.FloatTensor(sequence), sequence_labels #self.train_timestamp[start_idx], sequence_labels
     
     def denormalize(self, data):
         if self.normalize:
@@ -54,7 +54,7 @@ class TimeSeriesDataset(Dataset):
 class TimeSeriesTestDataset(Dataset):
     def __init__(self, folder_path, sequence_length=10000, stride=1000, normalize=True, mean=None, std=None):
         self.test_data = np.load(f'{folder_path}/test.npy')
-        self.test_timestamp = np.load(f'{folder_path}/test_timestamp.npy')
+        #self.test_timestamp = np.load(f'{folder_path}/test_timestamp.npy')
         self.test_label = np.load(f'{folder_path}/test_label.npy')
         self.sequence_length = sequence_length
         self.stride = stride
@@ -78,7 +78,7 @@ class TimeSeriesTestDataset(Dataset):
         end_idx = start_idx + self.sequence_length
         sequence = self.test_data[start_idx:end_idx]
         sequence_labels = self.test_label[start_idx:end_idx]
-        return torch.FloatTensor(sequence), self.test_timestamp[start_idx], sequence_labels
+        return torch.FloatTensor(sequence),sequence_labels # self.test_timestamp[start_idx], sequence_labels
     
     def denormalize(self, data):
         if self.normalize:

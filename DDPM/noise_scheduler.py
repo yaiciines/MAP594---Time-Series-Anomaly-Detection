@@ -248,7 +248,7 @@ generate_pink_noise_like Method: Generates pink noise by filtering white noise, 
 import torch
 import torch.nn.functional as F
 
-class PinkNoiseScheduler:
+class PinkNoiseScheduler():
     def __init__(self,
                  num_timesteps=1000,
                  beta_start=0.0001,
