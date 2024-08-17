@@ -3,3 +3,4 @@ __pycache__/
 datasets/
 output/
 output_WSD/
+output_NAB/
