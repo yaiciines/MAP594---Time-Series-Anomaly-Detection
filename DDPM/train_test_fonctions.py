@@ -37,9 +37,7 @@ from positional_embeddings import PositionalEmbedding
 from pytorch_tcn import TCN  # Import the TCN class from pytorch-tcn
 
 import json
-
-from sklearn.metrics import classification_report
-
+from sklearn.metrics import classification_report, roc_curve, auc
 
 #===================================================================================================================================================
 
@@ -408,3 +406,203 @@ collective_outliers_no_smooth = iqr_collective_outliers(sample, denoised_sample,
 
 print(f"Collective outliers detected (with smoothing): {collective_outliers_smooth.sum()}")
 print(f"Collective outliers detected (without smoothing): {collective_outliers_no_smooth.sum()}")"""
+
+
+# one by one training and testing 
+
+def train_model(config, model, noise_scheduler, train_dataloader):
+    optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
+    losses = []
+    
+    for epoch in tqdm(range(config.num_epochs), desc="Training"):
+        model.train()
+        epoch_losses = []
+        for step, (batch, labels) in enumerate(train_dataloader):
+            noise = torch.randn_like(batch)
+            timesteps = torch.randint(0, noise_scheduler.num_timesteps, (batch.shape[0],)).long()
+            timesteps = torch.sort(timesteps).values
+            noisy = noise_scheduler.add_noise(batch, noise, timesteps)
+            noisy = noisy.unsqueeze(-1)
+            noise_pred = model(noisy)
+            batch = batch.unsqueeze(-1)
+            loss = F.mse_loss(noise_pred, batch)
+            loss.backward()
+            nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            optimizer.step()
+            optimizer.zero_grad()
+            epoch_losses.append(loss.item())
+        
+        avg_loss = np.mean(epoch_losses)
+        losses.append(avg_loss)
+        print(f"Epoch {epoch + 1}/{config.num_epochs}, Loss: {avg_loss:.4f}")
+    
+    return model, losses
+
+def test_model(config, model, noise_scheduler, test_dataloader):
+    model.eval()
+    all_labels = []
+    all_scores = []
+    
+    for step, (sample, labels) in enumerate(tqdm(test_dataloader, desc="Testing")):
+        with torch.no_grad():
+            timesteps = torch.tensor([70])
+            noise = torch.randn_like(sample)
+            noisy_sample = noise_scheduler.add_noise(sample, noise, timesteps)
+            noisy_sample = noisy_sample.unsqueeze(-1)
+            sample = sample.unsqueeze(-1)
+            denoised_sample = model(noisy_sample)
+            iqr_out, iqr_scores = iqr_outliers(sample, denoised_sample)
+            labels = labels.cpu().numpy()
+            all_labels.extend(labels.reshape(-1))
+            all_scores.extend(iqr_scores.reshape(-1))
+    
+    fpr, tpr, thresholds = roc_curve(all_labels, all_scores)
+    roc_auc = auc(fpr, tpr)
+    
+    return all_labels, all_scores, fpr, tpr, roc_auc
+
+def process_directory(data_path, base_config, model_class, noise_scheduler):
+    print(f"\nProcessing directory: {os.path.basename(data_path)}")
+    
+    base_config["data_path"] = data_path
+    config = Config(base_config)
+    
+    # Set up datasets and dataloaders
+    train_dataset = TimeSeriesDataset(config.data_path, sequence_length=sequence_length, stride=stride, normalize=False)
+    test_dataset = TimeSeriesTestDataset(config.data_path, sequence_length=sequence_length, stride=sequence_length, normalize=False)
+    
+    train_dataloader = DataLoader(train_dataset, batch_size=config.train_batch_size, shuffle=False, drop_last=True)
+    test_dataloader = DataLoader(test_dataset, batch_size=config.eval_batch_size, shuffle=False, drop_last=True)
+    
+    # Initialize and train the model
+    model = model_class(
+        num_inputs=input_size,
+        num_channels=[32,64,128,256,128,64,32,1],
+        kernel_size=3,
+        dropout=0.2,
+        causal=True,
+        use_norm='weight_norm',
+        activation='relu',
+        kernel_initializer='xavier_uniform',
+        use_skip_connections=False,
+        input_shape='NLC'
+    )
+    
+    model, losses = train_model(config, model, noise_scheduler, train_dataloader)
+    
+    # Test the model
+    all_labels, all_scores, fpr, tpr, roc_auc = test_model(config, model, noise_scheduler, test_dataloader)
+    
+    print(f"\nClassification report for {os.path.basename(data_path)}")
+    print(classification_report(all_labels, (np.array(all_scores) > 1.5).astype(int)))
+    print(f"ROC AUC: {roc_auc:.4f}")
+    
+    # Save model and results
+    output_dir = os.path.join(config.output_dir, os.path.basename(data_path), str(config.num_epochs))
+    os.makedirs(output_dir, exist_ok=True)
+    
+    torch.save(model.state_dict(), os.path.join(output_dir, "model.pth"))
+    
+    with open(os.path.join(output_dir, "losses.json"), "w") as f:
+        json.dump(losses, f)
+    
+    with open(os.path.join(output_dir, "config.json"), "w") as f:
+        json.dump(vars(config), f)
+    
+    return {
+        'dir': os.path.basename(data_path),
+        'labels': all_labels,
+        'scores': all_scores,
+        'fpr': fpr,
+        'tpr': tpr,
+        'roc_auc': roc_auc,
+        'losses': losses
+    }
+
+# all in one training 
+
+
+def trainer_all_in_one(config, model, noise_scheduler,data_folder):
+    
+    optimizer = torch.optim.AdamW(
+        model.parameters(),
+        lr=config.learning_rate,
+    )
+    
+    losses = []
+    print("Training model...")
+    # Training over windows: The code does train over these windows. Each batch contains multiple sequences of length sequence_length.
+        
+    for epoch in tqdm(range(config.num_epochs)):
+        model.train()
+        for root, dirs, files in os.walk(data_folder):
+            for dir in dirs:
+                data_path = os.path.join(data_folder, dir)
+            
+                # change datapath in the config
+                base_config["data_path"] = data_path
+                
+                # Create Config object
+                config = Config(base_config)
+                
+                # Set up dataset and dataloader
+                dataset = TimeSeriesDataset(config.data_path,sequence_length=sequence_length, stride=stride,normalize=False)
+                
+                dataloader = DataLoader(dataset, batch_size=config.train_batch_size, shuffle=False , drop_last=True)
+                
+                for step, (batch, labels) in enumerate(dataloader):
+                    
+                    noise = torch.randn_like(batch)
+                    
+                    timesteps = torch.randint(
+                        0, noise_scheduler.num_timesteps, (batch.shape[0],)
+                    ).long()
+                    
+                    # order timesteps
+                    timesteps = torch.sort(timesteps).values
+                    
+                    noisy = noise_scheduler.add_noise(batch, noise, timesteps)
+                    
+                    noisy = noisy.unsqueeze(-1) 
+                    # pred noise from the model
+                    noise_pred = model(noisy)
+                    
+                    #print("noise_pred", noise_pred.shape)
+                    batch = batch.unsqueeze(-1)
+                    
+                    loss = F.mse_loss(noise_pred, batch) # je vais predire la distribution de base 
+                    
+                    loss.backward()
+                    nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+                    optimizer.step()
+                    optimizer.zero_grad()
+                    
+                #if epoch == 0:    
+                    #plot_samples(batch[0], noisy[0], noise_pred[0])
+                
+                #progress_bar.update(1)
+                logs = {"loss": loss.detach().item(), "epoch": epoch}
+                losses.append(loss.detach().item())
+                print(logs)
+        
+    # save the model and the losses and the config in the output directory by creating a new directory with the number of epochs and the all in one training
+    output_dir = os.path.join(config.output_dir, str(config.num_epochs))
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # save the model
+    model_path = os.path.join(output_dir, "model.pth")
+    torch.save(model.state_dict(), model_path)
+    
+    # save the losses and the config in a json file
+    losses_path = os.path.join(output_dir, "losses.json")
+    with open(losses_path, "w") as f:
+        json.dump(losses, f)
+        
+    # save the config
+    config_path = os.path.join(output_dir, "config.json")
+    with open(config_path, "w") as f:
+        json.dump(vars(config), f)
+    
+    
+    #progress_bar.close()              
+    return model, losses
