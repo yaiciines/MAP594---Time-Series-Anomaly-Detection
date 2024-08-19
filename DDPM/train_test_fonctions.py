@@ -172,7 +172,7 @@ def trainer(config, model, noise_scheduler, dataset):
     return model, losses
 
 
-def train_tracker(config, model, dataset):
+def train_tracker(losses, config, model, dataset):
     # save the model, losses, and all the config parameters in a directory 
     import os
     import json
@@ -466,7 +466,7 @@ def test_model(config, model, noise_scheduler, test_dataloader):
     
     return all_labels, all_scores, fpr, tpr, roc_auc
 
-def process_directory(data_path, base_config, model_class, noise_scheduler):
+def process_directory(sequence_length, stride,input_size ,data_path, base_config, model_class, noise_scheduler):
     print(f"\nProcessing directory: {os.path.basename(data_path)}")
     
     base_config["data_path"] = data_path
@@ -527,7 +527,7 @@ def process_directory(data_path, base_config, model_class, noise_scheduler):
 # all in one training 
 
 
-def trainer_all_in_one(config, model, noise_scheduler,data_folder):
+def trainer_all_in_one(sequence_length, stride,base_config, config, model, noise_scheduler,data_folder):
     
     optimizer = torch.optim.AdamW(
         model.parameters(),
