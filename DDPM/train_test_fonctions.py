@@ -45,6 +45,11 @@ from sklearn.metrics import classification_report, roc_curve, auc
 
 from sklearn.metrics import f1_score, average_precision_score
 
+class Config:
+    def __init__(self, config_dict):
+        for key, value in config_dict.items():
+            setattr(self, key, value)
+            
 # define the function to calculate the f1 score and auprc score
 def calculate_f1_auprc_score(y_true, y_pred):
     f1 = f1_score(y_true, y_pred, average='weighted', zero_division=0 ) #, labels=np.unique(y_pred) zero_division=np.nan
