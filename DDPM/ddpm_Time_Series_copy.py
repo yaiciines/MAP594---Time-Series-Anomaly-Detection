@@ -35,9 +35,9 @@ class TimeSeriesDataset(Dataset):
             """self.mean = np.mean(self.train_data)
             self.std = np.std(self.train_data)
             self.train_data = (self.train_data - self.mean) / self.std"""
-            self.min_val = self.data.min()
+            self.min_val = self.train_data.min()
             if self.min_val < 0:
-                self.data = self.data - self.min_val
+                self.train_data = self.train_data - self.min_val
         
     def __len__(self):
         return (len(self.train_data) - self.sequence_length) // self.stride + 1
@@ -65,13 +65,16 @@ class TimeSeriesTestDataset(Dataset):
         
         if self.normalize:
             # If mean and std are provided, use them; otherwise, calculate from test data
-            if mean is not None and std is not None:
+            """if mean is not None and std is not None:
                 self.mean = mean
                 self.std = std
             else:
                 self.mean = np.mean(self.test_data)
                 self.std = np.std(self.test_data)
-            self.test_data = (self.test_data - self.mean) / self.std
+            self.test_data = (self.test_data - self.mean) / self.std"""
+            self.min_val = self.test_data.min()
+            if self.min_val < 0:
+                self.test_data = self.test_data - self.min_val
         
     def __len__(self):
         return (len(self.test_data) - self.sequence_length) // self.stride + 1
