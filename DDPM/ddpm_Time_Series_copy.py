@@ -31,13 +31,10 @@ class TimeSeriesDataset(Dataset):
         self.stride = stride
         self.normalize = normalize
         
-        if self.normalize:
-            """self.mean = np.mean(self.train_data)
-            self.std = np.std(self.train_data)
-            self.train_data = (self.train_data - self.mean) / self.std"""
+        if self.normalize: 
             self.min_val = self.train_data.min()
-            if self.min_val < 0:
-                self.train_data = self.train_data - self.min_val
+            self.max_val = self.train_data.max()
+            self.train_data = (self.train_data - self.min_val) / (self.max_val - self.min_val) * 100
         
     def __len__(self):
         return (len(self.train_data) - self.sequence_length) // self.stride + 1
@@ -49,10 +46,10 @@ class TimeSeriesDataset(Dataset):
         sequence_labels = self.train_label[start_idx:end_idx]
         return torch.FloatTensor(sequence), sequence_labels #self.train_timestamp[start_idx], sequence_labels
     
-    def denormalize(self, data):
+    def denormalize(self, normalized_data):
         if self.normalize:
-            return data * self.std + self.mean
-        return data
+            return (normalized_data / 100) * (self.max_val - self.min_val) + self.min_val
+        return normalized_data
 
 class TimeSeriesTestDataset(Dataset):
     def __init__(self, folder_path, sequence_length=10000, stride=1000, normalize=True, mean=None, std=None):
@@ -64,17 +61,9 @@ class TimeSeriesTestDataset(Dataset):
         self.normalize = normalize
         
         if self.normalize:
-            # If mean and std are provided, use them; otherwise, calculate from test data
-            """if mean is not None and std is not None:
-                self.mean = mean
-                self.std = std
-            else:
-                self.mean = np.mean(self.test_data)
-                self.std = np.std(self.test_data)
-            self.test_data = (self.test_data - self.mean) / self.std"""
             self.min_val = self.test_data.min()
-            if self.min_val < 0:
-                self.test_data = self.test_data - self.min_val
+            self.max_val = self.test_data.max()
+            self.test_data = (self.test_data - self.min_val) / (self.max_val - self.min_val) * 100
         
     def __len__(self):
         return (len(self.test_data) - self.sequence_length) // self.stride + 1
@@ -86,11 +75,10 @@ class TimeSeriesTestDataset(Dataset):
         sequence_labels = self.test_label[start_idx:end_idx]
         return torch.FloatTensor(sequence),sequence_labels # self.test_timestamp[start_idx], sequence_labels
     
-    def denormalize(self, data):
+    def denormalize(self, normalized_data):
         if self.normalize:
-            return data * self.std + self.mean
-        return data
-
+            return (normalized_data / 100) * (self.max_val - self.min_val) + self.min_val
+        return normalized_data
 
 
 # Example usage:
