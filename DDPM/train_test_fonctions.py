@@ -321,7 +321,11 @@ def z_score_outliers(sample, denoised_sample, threshold=3.0):
     std = torch.std(diff)
     z_scores = torch.abs((diff - mean) / std)
     outliers = (z_scores > threshold).cpu().numpy()
-    return outliers
+    
+    # Calculate anomaly scores
+    anomaly_scores = z_scores.cpu().numpy()
+    
+    return outliers, anomaly_scores
 
 def modified_z_score_outliers(sample, denoised_sample, threshold=3.5):
     diff = sample - denoised_sample
@@ -329,7 +333,11 @@ def modified_z_score_outliers(sample, denoised_sample, threshold=3.5):
     mad = torch.median(torch.abs(diff - median))
     modified_z_scores = 0.6745 * torch.abs(diff - median) / mad
     outliers = (modified_z_scores > threshold).cpu().numpy()
-    return outliers
+    
+    # Calculate anomaly scores
+    anomaly_scores = modified_z_scores.cpu().numpy()
+    
+    return outliers, anomaly_scores
 
 def iqr_outliers(sample, denoised_sample, threshold=1.5):
     diff = sample - denoised_sample
@@ -343,6 +351,15 @@ def iqr_outliers(sample, denoised_sample, threshold=1.5):
     # Calculate anomaly scores
     anomaly_scores = torch.abs(diff) / iqr
     anomaly_scores = anomaly_scores.cpu().numpy()
+    
+    return outliers, anomaly_scores
+
+def absolute_difference_outliers(sample, denoised_sample, threshold):
+    diff = torch.abs(sample - denoised_sample)
+    outliers = (diff > threshold).cpu().numpy()
+    
+    # Calculate anomaly scores
+    anomaly_scores = diff.cpu().numpy()
     
     return outliers, anomaly_scores
 
@@ -439,7 +456,7 @@ def train_model(config, model, noise_scheduler, train_dataloader):
         
         avg_loss = np.mean(epoch_losses)
         losses.append(avg_loss)
-        print(f"Epoch {epoch + 1}/{config.num_epochs}, Loss: {avg_loss:.4f}")
+        #print(f"Epoch {epoch + 1}/{config.num_epochs}, Loss: {avg_loss:.4f}")
     
     return model, losses
 
@@ -450,7 +467,7 @@ def test_model(config, model, noise_scheduler, test_dataloader):
     
     for step, (sample, labels) in enumerate(tqdm(test_dataloader, desc="Testing")):
         with torch.no_grad():
-            timesteps = torch.tensor([70])
+            timesteps = torch.tensor([40])
             noise = torch.randn_like(sample)
             noisy_sample = noise_scheduler.add_noise(sample, noise, timesteps)
             noisy_sample = noisy_sample.unsqueeze(-1)
@@ -482,7 +499,7 @@ def process_directory(sequence_length, stride,input_size ,data_path, base_config
     # Initialize and train the model
     model = model_class(
         num_inputs=input_size,
-        num_channels=[32,64,128,256,128,64,32,1],
+        num_channels=[32,64, 128,256,128,64,32,1],
         kernel_size=3,
         dropout=0.2,
         causal=True,
@@ -498,21 +515,32 @@ def process_directory(sequence_length, stride,input_size ,data_path, base_config
     # Test the model
     all_labels, all_scores, fpr, tpr, roc_auc = test_model(config, model, noise_scheduler, test_dataloader)
     
-    print(f"\nClassification report for {os.path.basename(data_path)}")
+    
+    """print(f"\nClassification report for {os.path.basename(data_path)}")
     print(classification_report(all_labels, (np.array(all_scores) > 1.5).astype(int)))
-    print(f"ROC AUC: {roc_auc:.4f}")
+    print(f"ROC AUC: {roc_auc:.4f}")"""
     
-    # Save model and results
-    output_dir = os.path.join(config.output_dir, os.path.basename(data_path), str(config.num_epochs))
-    os.makedirs(output_dir, exist_ok=True)
+    # can you print the classification report in a txt file whitout owerriting it
+    # create a txt file in the output directory if it does not exist
+    os.makedirs(config.output_dir, exist_ok=True)
+
+    txt_file_path = os.path.join(config.output_dir, "classification_report.txt")
     
-    torch.save(model.state_dict(), os.path.join(output_dir, "model.pth"))
-    
-    with open(os.path.join(output_dir, "losses.json"), "w") as f:
+    if not os.path.exists(txt_file_path):
+        with open(txt_file_path, "w") as f:
+            f.write("Classification Report:\n")
+            # write the roc auc score
+            f.write(f"ROC AUC: {roc_auc:.4f}\n")
+    else:
+        with open(txt_file_path, "a") as f:
+            f.write("\n\nClassification Report:\n")
+            f.write(f"ROC AUC: {roc_auc:.4f}\n")
+            
+    """with open(os.path.join(output_dir, "losses.json"), "w") as f:
         json.dump(losses, f)
     
     with open(os.path.join(output_dir, "config.json"), "w") as f:
-        json.dump(vars(config), f)
+        json.dump(vars(config), f)"""
     
     return {
         'dir': os.path.basename(data_path),
@@ -551,7 +579,7 @@ def trainer_all_in_one(sequence_length, stride,base_config, config, model, noise
                 config = Config(base_config)
                 
                 # Set up dataset and dataloader
-                dataset = TimeSeriesDataset(config.data_path,sequence_length=sequence_length, stride=stride,normalize=False)
+                dataset = TimeSeriesDataset(config.data_path,sequence_length=sequence_length, stride=stride,normalize=True)
                 
                 dataloader = DataLoader(dataset, batch_size=config.train_batch_size, shuffle=False , drop_last=True)
                 
@@ -582,8 +610,8 @@ def trainer_all_in_one(sequence_length, stride,base_config, config, model, noise
                     optimizer.step()
                     optimizer.zero_grad()
                     
-                #if epoch == 0:    
-                    #plot_samples(batch[0], noisy[0], noise_pred[0])
+                if epoch == 0:    
+                    plot_samples(batch[0], noisy[0], noise_pred[0])
                 
                 #progress_bar.update(1)
                 logs = {"loss": loss.detach().item(), "epoch": epoch}

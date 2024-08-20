@@ -32,9 +32,12 @@ class TimeSeriesDataset(Dataset):
         self.normalize = normalize
         
         if self.normalize:
-            self.mean = np.mean(self.train_data)
+            """self.mean = np.mean(self.train_data)
             self.std = np.std(self.train_data)
-            self.train_data = (self.train_data - self.mean) / self.std
+            self.train_data = (self.train_data - self.mean) / self.std"""
+            self.min_val = self.data.min()
+            if self.min_val < 0:
+                self.data = self.data - self.min_val
         
     def __len__(self):
         return (len(self.train_data) - self.sequence_length) // self.stride + 1
