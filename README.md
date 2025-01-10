@@ -13,7 +13,7 @@ in the industrial sector. On the other hand, well-known statistical methods such
 Isolation Forest, which are fast and do not require much memory, do not explicitly handle
 temporal information.
 To address these challenges, I present an unsupervised anomaly detection method based on
-denoising diffusion models, which have gained recognition in recent years for their impressive
+denoising diffusion models, which have gained recognition in recenhttps://www.google.com/t years for their impressive
 performance in generative modeling and are promising candidates for density-based anomaly
 detection due to their ability to capture complex data distributions. However, despite their
 potential, these models have not yet been widely applied to anomaly detection, making this
@@ -35,12 +35,14 @@ crucial to carefully consider the information provided and its application.
 Jingjing Li, Haiming Zhang, Jing Han, Dan Pei, Jianhui Li, and Gaogang Xie. Timeseries-
 bench: An industrial-grade benchmark for time series anomaly detection models. arXiv
 preprint arXiv:2402.10802, v2, 2024. arXiv:2402.10802v2 [cs.LG], 26 Feb 2024.
+
 [2] Nab dataset. https://www.kaggle.com/datasets/boltzmannbrain/nab, 2017.
+
 [3] Aiops dataset. https://github.com/iopsai/iops, 2018.
-[4] Ucr time series anomaly archive. https://wu.renjie.im/research/
-anomaly-benchmarks-are-flawed/ucr-time-series-anomaly-archive, 2022.
-[5] Wsd dataset. https://github.com/alumik/AnoTransfer-data, 2022.7[2]Yahoo webscope s5 dataset. https://webscope.sandbox.yahoo.com/catalog.php?
-datatype=s&did=70, 2015.
-[6] Dataflowr. Project tiny diffusion. https://github.com/dataflowr/
-Project-tiny-diffusion.
+
+[4] Ucr time series anomaly archive. https://wu.renjie.im/research/anomaly-benchmarks-are-flawed/ucr-time-series-anomaly-archive, 2022.
+
+[5] Wsd dataset. https://github.com/alumik/AnoTransfer-data, 2022.7[2]Yahoo webscope s5 dataset. https://webscope.sandbox.yahoo.com/catalog.php?datatype=s&did=70, 2015.
+
+[6] Dataflowr. Project tiny diffusion. https://github.com/dataflowr/Project-tiny-diffusion.
 
