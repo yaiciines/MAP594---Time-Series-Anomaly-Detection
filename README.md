@@ -12,8 +12,9 @@ consuming and require computational and human resources, which can be costly for
 in the industrial sector. On the other hand, well-known statistical methods such as SVM or
 Isolation Forest, which are fast and do not require much memory, do not explicitly handle
 temporal information.
+
 To address these challenges, I present an unsupervised anomaly detection method based on
-denoising diffusion models, which have gained recognition in recenhttps://www.google.com/t years for their impressive
+denoising diffusion models, which have gained recognition in recent years for their impressive
 performance in generative modeling and are promising candidates for density-based anomaly
 detection due to their ability to capture complex data distributions. However, despite their
 potential, these models have not yet been widely applied to anomaly detection, making this
